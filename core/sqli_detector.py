@@ -2,7 +2,7 @@ import re
 import math
 from typing import List, Optional
 from dataclasses import dataclass
-from core.config import SQLI_SIGNATURES
+from core.config import SQLI_SIGNATURES, SecurityConfig
 
 @dataclass
 class InspectionResult:
@@ -10,13 +10,14 @@ class InspectionResult:
     risk_score: int
     matched_rules: List[str]
     attack_categories: List[str]
-    action: str
+    action: str # ALLOW, WARN, BLOCK
     explanation: str
     original_query: str
     sanitized_query: Optional[str] = None
 
 class SQLiDetector:
-    def __init__(self):
+    def __init__(self, config: Optional[SecurityConfig] = None):
+        self.config = config or SecurityConfig()
         self.signatures = SQLI_SIGNATURES
 
     def calculate_entropy(self, query: str) -> float:
@@ -41,7 +42,7 @@ class SQLiDetector:
 
         # Аномальная плотность символов SQL
         special_chars = sum(1 for char in query if char in "=;#/*%\\@^~")
-        if len(query) > 0 and (special_chars / len(query)) > 0/15:
+        if len(query) > 0 and (special_chars / len(query)) > 0.15:
             score += 25
 
         # Энтропия выше нормы для стандартных SQL-запросов (признак обфускации)
@@ -49,8 +50,10 @@ class SQLiDetector:
         if ent > 4.8 and len(query) > 30:
             score += 20
 
+        return score
 
     def inspect_query(self, query: str) -> InspectionResult:
+        """Комплексная инспекция SQL-запроса на признаки атак"""
         if not query or not query.strip():
             return InspectionResult(
                 is_threat=False,
@@ -75,17 +78,32 @@ class SQLiDetector:
                 if sig["risk"] > rule_risk_max:
                     rule_risk_max = sig["risk"]
 
+        # Эвристический анализ
+        heuristic_score = self.analyze_heuristics(query)
+
+        # Результирующий риск (композиция максимума сигнатур и эвристики)
+        final_risk = min(100, rule_risk_max + (heuristic_score // 2))
+
+        is_threat = final_risk >= self.config.risk_threshold_medium
+        if final_risk >= self.config.auto_block_threshold:
+            action = "BLOCK"
+            explanation = f"Критическая угроза! Запрос заблокирован (Риск: {final_risk}/100)."
+        elif final_risk >= self.config.risk_threshold_medium:
+            action = "WARN"
+            explanation = f"Подозрительная активность зафиксирована в аудите (Риск: {final_risk}/100)."
+        else:
+            action = "ALLOW"
+            explanation = "Запрос признан легитимным и безопасным."
+
+        if matched_rules:
+            explanation += f" Сработавшие правила: {', '.join(matched_rules)}."
+
         return InspectionResult(
-            is_threat=True,
-            risk_score=rule_risk_max,
+            is_threat=is_threat,
+            risk_score=final_risk,
             matched_rules=matched_rules,
             attack_categories=categories,
-            action="BLOCK",
-            explanation="Сигнатурный анализ",
+            action=action,
+            explanation=explanation,
             original_query=query
         )
-
-
-
-
-

@@ -1,4 +1,14 @@
 from typing import List, Dict
+from dataclasses import dataclass
+
+@dataclass
+class SecurityConfig:
+    # Пороговые значения риска (от 0 до 100)
+    risk_threshold_low: int = 25
+    risk_threshold_medium: int = 50
+    risk_threshold_high: int = 75
+    # Автоматическая блокировка запроса при риске выше:
+    auto_block_threshold: int = 70
 
 SQLI_SIGNATURES: List[Dict] = [
     {
