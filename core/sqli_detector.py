@@ -1,4 +1,5 @@
 import re
+import math
 from typing import List, Optional
 from dataclasses import dataclass
 from core.config import SQLI_SIGNATURES
@@ -17,6 +18,16 @@ class InspectionResult:
 class SQLiDetector:
     def __init__(self):
         self.signatures = SQLI_SIGNATURES
+
+    def calculate_entropy(self, text: str) -> float:
+        """Вычисляет информационную энтропию Шеннона для детекции обфускации"""
+        if not text:
+            return 0.0
+        # Вероятность каждого уникального значения
+        prob = [float(text.count(c)) / len(text) for c in dict.fromkeys(list(text))]
+        entropy = -sum([p * math.log2(p) for p in prob if p > 0])
+        return entropy
+
 
     def inspect_query(self, query: str) -> InspectionResult:
         if not query or not query.strip():
