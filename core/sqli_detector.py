@@ -22,10 +22,38 @@ SQLI_SIGNATURES: List[Dict] = [
         "pattern": r"(?i);\s*(drop|alter|delete|update|insert|create|truncate)\b",
         "risk": 100,
         "category": "Data Destruction / Unauthorized Modification"
+    },
+    {
+        "id": "SQLI_COMMENTS",
+        "name": "Символы обрезки и комментирования SQL",
+        "pattern": r"(--|#|/\*.*?\*/)",
+        "risk": 60,
+        "category": "Syntax Obfuscation"
+    },
+    {
+        "id": "SQLI_TIME_BASED",
+        "name": "Слепая инъекция на основе задержки времени (Time-Based)",
+        "pattern": r"(?i)\b(pg_sleep|sleep|waitfor\s+delay|benchmark)\s*\(",
+        "risk": 90,
+        "category": "Blind SQL Injection"
+    },
+    {
+        "id": "SQLI_SYS_FUNCS",
+        "name": "Обращение к системным таблицам и метаданным СУБД",
+        "pattern": r"(?i)\b(information_schema|pg_catalog|pg_tables|pg_user|pg_shadow)\b",
+        "risk": 80,
+        "category": "Reconnaissance / Metadata Harvesting"
+    },
+    {
+        "id": "SQLI_PRIV_ESC",
+        "name": "Попытка повышения привилегий или вызова шелла",
+        "pattern": r"(?i)\b(copy\s+.*\s+from\s+program|xp_cmdshell|pg_read_file)\b",
+        "risk": 100,
+        "category": "Remote Code Execution / Privilege Escalation"
     }
 ]
 
-query = "select * from tbl where 1=1"
+query = ""
 matched_rules = []
 categories = []
 rule_risk_max = 0
@@ -38,5 +66,3 @@ for sig in SQLI_SIGNATURES:
         if sig["risk"] > rule_risk_max:
             rule_risk_max = sig["risk"]
 
-print(categories)
-print(rule_risk_max)
