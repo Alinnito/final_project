@@ -4,7 +4,8 @@
 с расчетом HMAC-SHA256 для каждой записи, фильтрацию и экспорт отчетов
 """
 import time
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, asdict
 from typing import List, Optional
 from core.crypto_engine import CryptoEngine
 
@@ -66,3 +67,7 @@ class AuditLogger:
             if not self.crypto_engine.verify_hmac(data_to_verify, r.integrity_hmac):
                 corrupted_ids.append(r.record_id)
         return corrupted_ids
+
+    def export_json(self) -> str:
+        """Экспорт журнала аудита в формат JSON"""
+        return json.dumps([asdict(r) for r in self.records], ensure_ascii=False, indent=2)
