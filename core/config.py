@@ -1,5 +1,21 @@
+"""
+Модуль конфигурации комплекса защиты баз данных (DBSecGuard)
+Содержит настройки подключения, параметры криптографической защиты,
+правила сигнатурного анализа и пороговые значения системы обнаружения атак
+"""
+import os
 from typing import List, Dict
 from dataclasses import dataclass
+
+@dataclass
+class DatabaseConfig:
+    host: str = os.getenv("DB_HOST", "localhost")
+    port: int = int(os.getenv("DB_PORT", "5432"))
+    dbname: str = os.getenv("DB_NAME", "TEST")
+    user: str = os.getenv("DB_USER", "sa")
+    password: str = os.getenv("DB_PASS", "1234")
+    use_sqlite_fallback: bool = True
+    sqlite_path: str = os.path.join(os.path.dirname(__file__), "..", "db_local_sec.db")
 
 @dataclass
 class SecurityConfig:
