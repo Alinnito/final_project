@@ -13,7 +13,7 @@ from core.sqli_detector import SQLiDetector
 from core.audit_logger import AuditLogger
 from core.rbac_manager import RBACManager
 from core.db_connector import DBConnector
-from gui.widgets import MetricCard
+from gui.widgets import MetricCard, RiskIndicator
 
 DARK_STYLE = """
 QMainWindow {
@@ -106,6 +106,12 @@ QGroupBox::title {
 }
 """
 
+
+
+
+
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -134,7 +140,7 @@ class MainWindow(QMainWindow):
 
         # Верхняя панель статуса
         top_bar = QHBoxLayout()
-        lbl_brand = QLabel("🛡️ DBSecGuard Enterprise")
+        lbl_brand = QLabel("🛡️ DBSecGuard")
         lbl_brand.setStyleSheet("font-size: 16px; font-weight: bold; color: #00b4d8;")
         top_bar.addWidget(lbl_brand)
 
@@ -171,6 +177,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.tab_rbac, "👥 Политики доступа RBAC")
 
         self.setup_dash_tab()
+        self.setup_inspector_tab()
 
     def setup_dash_tab(self):
         layout = QVBoxLayout(self.tab_dash)
@@ -213,6 +220,68 @@ class MainWindow(QMainWindow):
         layout.addWidget(act_box)
         layout.addStretch()
 
+    def setup_inspector_tab(self):
+        layout = QVBoxLayout(self.tab_inspector)
+
+        splitter = QSplitter(Qt.Vertical)
+
+        # Верхняя панель: ввод запроса и выбор пресета
+        top_widget = QWidget()
+        top_layout = QVBoxLayout(top_widget)
+
+        preset_layout = QHBoxLayout()
+        preset_layout.addWidget(QLabel("Выбрать тестовый шаблон запроса:"))
+        self.combo_presets = QComboBox()
+        self.combo_presets.addItem("--- Пользовательский ввод ---", "")
+        self.combo_presets.addItem("Легитимный: Выборка студентов кафедры", "SELECT id, full_name, group_name FROM students WHERE group_name = 'БИБ-21';")
+        self.combo_presets.addItem("Легитимный: Запрос данных сотрудника", "SELECT id, full_name, phone, email FROM employees WHERE id = 1;")
+        self.combo_presets.addItem("Атака SQLi 1: Логическое тождество (Tautology Bypass)", "SELECT * FROM users WHERE username = 'admin' OR '1'='1' -- AND pass = 'pwd';")
+        self.combo_presets.addItem("Атака SQLi 2: Внедрение UNION SELECT для кражи данных", "SELECT full_name FROM students UNION SELECT passport_encrypted FROM employees; --")
+        self.combo_presets.addItem("Атака SQLi 3: Составной запрос (Stacked Query / DROP)", "SELECT id FROM employees; DROP TABLE students; --")
+        self.combo_presets.addItem("Атака SQLi 4: Слепая инъекция по времени (Time-Based)", "SELECT * FROM employees WHERE id = 1 AND pg_sleep(5);")
+        self.combo_presets.addItem("Атака SQLi 5: Попытка чтения системного каталога", "SELECT table_name FROM information_schema.tables WHERE table_schema='public';")
+        self.combo_presets.currentIndexChanged.connect(self.on_preset_selected)
+        preset_layout.addWidget(self.combo_presets)
+        top_layout.addLayout(preset_layout)
+
+        top_layout.addWidget(QLabel("SQL-запрос к СУБД:"))
+        self.txt_query = QTextEdit()
+        self.txt_query.setPlaceholderText("Введите SQL-запрос для проверки и выполнения...")
+        self.txt_query.setMinimumHeight(80)
+        top_layout.addWidget(self.txt_query)
+
+        # Индикатор риска
+        top_layout.addWidget(QLabel("Оценка угрозы безопасности:"))
+        self.risk_indicator = RiskIndicator()
+        top_layout.addWidget(self.risk_indicator)
+
+        self.lbl_verdict = QLabel("Готов к проверке запроса")
+        self.lbl_verdict.setStyleSheet("color: #a0aec0; font-style: italic;")
+        top_layout.addWidget(self.lbl_verdict)
+
+        btn_row = QHBoxLayout()
+        self.btn_inspect = QPushButton("🔍 Анализировать угрозу (WAF / SQLi Inspector)")
+        self.btn_inspect.clicked.connect(self.inspect_current_query)
+        btn_row.addWidget(self.btn_inspect)
+
+        self.btn_execute = QPushButton("⚡ Пропустить через защитный шлюз и выполнить")
+        self.btn_execute.setObjectName("btn_success")
+        self.btn_execute.clicked.connect(self.execute_secure_query)
+        btn_row.addWidget(self.btn_execute)
+
+        top_layout.addLayout(btn_row)
+        splitter.addWidget(top_widget)
+
+        # Нижняя панель: результат выполнения
+        bottom_widget = QWidget()
+        bottom_layout = QVBoxLayout(bottom_widget)
+        bottom_layout.addWidget(QLabel("Результат выполнения запроса (с применением маскирования):"))
+        self.table_results = QTableWidget()
+        bottom_layout.addWidget(self.table_results)
+        splitter.addWidget(bottom_widget)
+
+        layout.addWidget(splitter)
+
     # --- Обработчики событий ---
 
     def on_role_changed(self, idx):
@@ -238,3 +307,22 @@ class MainWindow(QMainWindow):
                 self, "НАРУШЕНИЕ ЦЕЛОСТНОСТИ!",
                 f"Обнаружена подделка или модификация записей журнала аудита! Поврежденные ID: {corrupted}"
             )
+
+    def on_preset_selected(self, idx):
+        query = self.combo_presets.currentData()
+        if query:
+            self.txt_query.setPlainText(query)
+            self.inspect_current_query()
+
+    def inspect_current_query(self):
+        query = self.txt_query.toPlainText().strip()
+        result = self.sqli.inspect_query(query)
+        self.risk_indicator.set_risk(result.risk_score)
+        self.lbl_verdict.setText(f"Вердикт: {result.explanation}")
+        return result
+
+    def execute_secure_query(self):
+        query = self.txt_query.toPlainText().strip()
+        if not query:
+            QMessageBox.warning(self, "Предупреждение", "Введите текст SQL-запроса!")
+            return
