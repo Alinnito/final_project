@@ -50,3 +50,17 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.READ_PUBLIC
     }
 }
+
+class UserSession:
+    def __init__(self, username: str, role: Role, ip_address: str, department_id: int = 1):
+        self.username = username
+        self.role = role
+        self.ip_address = ip_address
+        self.department_id = department_id
+
+    def has_permission(self, perm: Permission) -> bool:
+        allowed = ROLE_PERMISSIONS.get(self.role, set())
+        return perm in allowed
+
+    def can_view_sensitive(self) -> bool:
+        return self.has_permission(Permission.READ_SENSITIVE)
