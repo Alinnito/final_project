@@ -181,6 +181,7 @@ class MainWindow(QMainWindow):
         self.setup_inspector_tab()
         self.setup_audit_tab()
         self.setup_masking_tab()
+        self.setup_rbac_tab()
 
     def setup_dash_tab(self):
         layout = QVBoxLayout(self.tab_dash)
@@ -360,6 +361,36 @@ class MainWindow(QMainWindow):
         btn_refresh_emp.clicked.connect(self.load_employees_table)
         db_layout.addWidget(btn_refresh_emp)
         layout.addWidget(gb_db_data)
+
+    def setup_rbac_tab(self):
+        layout = QVBoxLayout(self.tab_rbac)
+
+        gb_roles = QGroupBox("Матрица разграничения доступа (RBAC Matrix)")
+        roles_layout = QVBoxLayout(gb_roles)
+
+        tbl = QTableWidget()
+        tbl.setColumnCount(6)
+        tbl.setHorizontalHeaderLabels([
+            "Роль", "Чтение публичных", "Чтение чувствительных (ПДн)", "Запись данных", "Конфигурация ИБ", "Просмотр аудита"
+        ])
+        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        matrix = [
+            ("Admin (DBA)", "✅ Да", "✅ Да (полный)", "✅ Да", "✅ Да", "✅ Да"),
+            ("Security Officer (Офицер ИБ)", "✅ Да", "❌ Нет (маскировано)", "❌ Нет", "✅ Да", "✅ Да"),
+            ("Department Operator (Оператор)", "✅ Да", "❌ Нет (маскировано)", "✅ Да", "❌ Нет", "❌ Нет"),
+            ("Analyst (Аналитик)", "✅ Да", "❌ Нет (маскировано)", "❌ Нет", "❌ Нет", "✅ Да"),
+            ("Guest (Гость)", "✅ Да (ограничено)", "❌ Нет", "❌ Нет", "❌ Нет", "❌ Нет")
+        ]
+        tbl.setRowCount(len(matrix))
+        for row_idx, row_data in enumerate(matrix):
+            for col_idx, val in enumerate(row_data):
+                item = QTableWidgetItem(val)
+                item.setTextAlignment(Qt.AlignCenter)
+                tbl.setItem(row_idx, col_idx, item)
+
+        roles_layout.addWidget(tbl)
+        layout.addWidget(gb_roles)
 
     # --- Обработчики событий ---
 
