@@ -68,6 +68,10 @@ class AuditLogger:
                 corrupted_ids.append(r.record_id)
         return corrupted_ids
 
+    def get_incidents(self) -> List[AuditRecord]:
+        """Возвращает только те записи, которые были классифицированы как инциденты ИБ"""
+        return [r for r in self.records if r.risk_score >= 50 or r.is_blocked]
+
     def export_json(self) -> str:
         """Экспорт журнала аудита в формат JSON"""
         return json.dumps([asdict(r) for r in self.records], ensure_ascii=False, indent=2)
