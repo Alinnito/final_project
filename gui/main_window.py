@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QMessageBox, QGroupBox, QSplitter
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 
 from core.crypto_engine import CryptoEngine
 from core.sqli_detector import SQLiDetector
@@ -178,6 +179,7 @@ class MainWindow(QMainWindow):
 
         self.setup_dash_tab()
         self.setup_inspector_tab()
+        self.setup_audit_tab()
 
     def setup_dash_tab(self):
         layout = QVBoxLayout(self.tab_dash)
@@ -282,6 +284,36 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(splitter)
 
+    def setup_audit_tab(self):
+        layout = QVBoxLayout(self.tab_audit)
+
+        filter_bar = QHBoxLayout()
+        filter_bar.addWidget(QLabel("Фильтр:"))
+        self.btn_filter_all = QPushButton("Все события")
+        self.btn_filter_all.clicked.connect(lambda: self.load_audit_table(only_incidents=False))
+        filter_bar.addWidget(self.btn_filter_all)
+
+        self.btn_filter_inc = QPushButton("Только инциденты ИБ")
+        self.btn_filter_inc.setObjectName("btn_danger")
+        self.btn_filter_inc.clicked.connect(lambda: self.load_audit_table(only_incidents=True))
+        filter_bar.addWidget(self.btn_filter_inc)
+
+        filter_bar.addStretch()
+        btn_verify = QPushButton("Проверить целостность (HMAC)")
+        btn_verify.clicked.connect(self.verify_audit_integrity)
+        filter_bar.addWidget(btn_verify)
+
+        layout.addLayout(filter_bar)
+
+        self.table_audit = QTableWidget()
+        self.table_audit.setColumnCount(8)
+        self.table_audit.setHorizontalHeaderLabels([
+            "ID", "Время", "Пользователь", "IP-адрес", "Операция", "Уровень риска", "Статус", "Запрос"
+        ])
+        self.table_audit.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table_audit.horizontalHeader().setSectionResizeMode(7, QHeaderView.Stretch)
+        layout.addWidget(self.table_audit)
+
     # --- Обработчики событий ---
 
     def on_role_changed(self, idx):
@@ -326,3 +358,30 @@ class MainWindow(QMainWindow):
         if not query:
             QMessageBox.warning(self, "Предупреждение", "Введите текст SQL-запроса!")
             return
+
+    def load_audit_table(self, only_incidents=False):
+        records = self.audit.get_incidents() if only_incidents else self.audit.records
+        self.table_audit.setRowCount(len(records))
+
+        for idx, r in enumerate(reversed(records)):
+            self.table_audit.setItem(idx, 0, QTableWidgetItem(str(r.record_id)))
+            self.table_audit.setItem(idx, 1, QTableWidgetItem(r.timestamp))
+            self.table_audit.setItem(idx, 2, QTableWidgetItem(r.username))
+            self.table_audit.setItem(idx, 3, QTableWidgetItem(r.client_ip))
+            self.table_audit.setItem(idx, 4, QTableWidgetItem(r.operation))
+
+            item_risk = QTableWidgetItem(f"{r.risk_score}/100")
+            if r.risk_score >= 70:
+                item_risk.setBackground(QColor("#781c24"))
+                item_risk.setForeground(QColor("#ffffff"))
+            elif r.risk_score >= 40:
+                item_risk.setBackground(QColor("#664d03"))
+                item_risk.setForeground(QColor("#ffffff"))
+            else:
+                item_risk.setBackground(QColor("#0f5132"))
+                item_risk.setForeground(QColor("#ffffff"))
+            self.table_audit.setItem(idx, 5, item_risk)
+
+            status_str = "🛑 ЗАБЛОКИРОВАН" if r.is_blocked else "✅ Разрешен"
+            self.table_audit.setItem(idx, 6, QTableWidgetItem(status_str))
+            self.table_audit.setItem(idx, 7, QTableWidgetItem(r.query_text))
