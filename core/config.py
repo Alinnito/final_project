@@ -3,6 +3,10 @@ from dataclasses import dataclass
 
 @dataclass
 class SecurityConfig:
+    # Симметричный ключ Fernet (AES-128 в режиме CBC с аутентификацией HMAC-SHA256)
+    encryption_key: bytes = b'vE9qT1zQyW5X8K7mP3nL0bJ6cV4xF2gH9sD8aM1kO4I='
+    # Соль для хеширования записей журнала аудита
+    audit_hmac_secret: bytes = b'EnterpriseDBSecuritySecret2026_AuditSalt!'
     # Пороговые значения риска (от 0 до 100)
     risk_threshold_low: int = 25
     risk_threshold_medium: int = 50
