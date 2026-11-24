@@ -180,6 +180,7 @@ class MainWindow(QMainWindow):
         self.setup_dash_tab()
         self.setup_inspector_tab()
         self.setup_audit_tab()
+        self.setup_masking_tab()
 
     def setup_dash_tab(self):
         layout = QVBoxLayout(self.tab_dash)
@@ -314,6 +315,52 @@ class MainWindow(QMainWindow):
         self.table_audit.horizontalHeader().setSectionResizeMode(7, QHeaderView.Stretch)
         layout.addWidget(self.table_audit)
 
+    def setup_masking_tab(self):
+        layout = QVBoxLayout(self.tab_masking)
+
+        gb_demo = QGroupBox("Интерактивный стенд проверки динамического маскирования (DDM)")
+        demo_layout = QVBoxLayout(gb_demo)
+
+        h1 = QHBoxLayout()
+        h1.addWidget(QLabel("Номер телефона:"))
+        self.input_phone = QLineEdit("+7 (916) 123-45-67")
+        h1.addWidget(self.input_phone)
+        self.lbl_masked_phone = QLabel("Результат маскирования:")
+        h1.addWidget(self.lbl_masked_phone)
+        demo_layout.addLayout(h1)
+
+        h2 = QHBoxLayout()
+        h2.addWidget(QLabel("Электронная почта:"))
+        self.input_email = QLineEdit("student.ivanov@university.ru")
+        h2.addWidget(self.input_email)
+        self.lbl_masked_email = QLabel("Результат маскирования:")
+        h2.addWidget(self.lbl_masked_email)
+        demo_layout.addLayout(h2)
+
+        h3 = QHBoxLayout()
+        h3.addWidget(QLabel("Паспорт РФ:"))
+        self.input_passport = QLineEdit("4510 987654")
+        h3.addWidget(self.input_passport)
+        self.lbl_masked_passport = QLabel("Результат маскирования:")
+        h3.addWidget(self.lbl_masked_passport)
+        demo_layout.addLayout(h3)
+
+        btn_mask_test = QPushButton("Применить алгоритмы маскирования")
+        btn_mask_test.clicked.connect(self.test_masking_fields)
+        demo_layout.addWidget(btn_mask_test)
+
+        layout.addWidget(gb_demo)
+
+        # Таблица защищенных данных из базы
+        gb_db_data = QGroupBox("Таблица сотрудников (данные с динамическим маскированием)")
+        db_layout = QVBoxLayout(gb_db_data)
+        self.table_employees = QTableWidget()
+        db_layout.addWidget(self.table_employees)
+        btn_refresh_emp = QPushButton("Загрузить данные из базы")
+        btn_refresh_emp.clicked.connect(self.load_employees_table)
+        db_layout.addWidget(btn_refresh_emp)
+        layout.addWidget(gb_db_data)
+
     # --- Обработчики событий ---
 
     def on_role_changed(self, idx):
@@ -339,6 +386,21 @@ class MainWindow(QMainWindow):
                 self, "НАРУШЕНИЕ ЦЕЛОСТНОСТИ!",
                 f"Обнаружена подделка или модификация записей журнала аудита! Поврежденные ID: {corrupted}"
             )
+
+    def test_masking_fields(self):
+        phone = self.input_phone.text()
+        email = self.input_email.text()
+        passport = self.input_passport.text()
+
+        self.lbl_masked_phone.setText(f"Результат: {self.crypto.mask_phone(phone)}")
+        self.lbl_masked_email.setText(f"Результат: {self.crypto.mask_email(email)}")
+        self.lbl_masked_passport.setText(f"Результат: {self.crypto.mask_passport(passport)}")
+
+    def load_employees_table(self):
+        cols, rows = self.db.execute_raw_query("SELECT id, full_name, phone, email, salary_encrypted FROM employees")
+        self.table_employees.setColumnCount(len(cols))
+        self.table_employees.setRowCount(len(rows))
+        self.table_employees.setHorizontalHeaderLabels(cols)
 
     def on_preset_selected(self, idx):
         query = self.combo_presets.currentData()
