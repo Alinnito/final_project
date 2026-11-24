@@ -3,7 +3,7 @@
 Определяет роли, матрицу полномочий, валидацию сессий пользователей
 """
 from enum import Enum
-from typing import Dict, Set
+from typing import Dict, Set, Optional
 
 class Permission(Enum):
     READ_PUBLIC = "read_public"
@@ -64,3 +64,25 @@ class UserSession:
 
     def can_view_sensitive(self) -> bool:
         return self.has_permission(Permission.READ_SENSITIVE)
+
+class RBACManager:
+    def __init__(self):
+        self.active_sessions: Dict[str, UserSession] = {}
+
+    def create_session(self, username: str, role_str: str, ip: str, dept_id: int = 1) -> UserSession:
+        try:
+            role = Role(role_str.lower())
+        except ValueError:
+            role = Role.GUEST
+        session = UserSession(username, role, ip, dept_id)
+        self.active_sessions[username] = session
+        return session
+
+    def get_session(self, username: str) -> Optional[UserSession]:
+        return self.active_sessions.get(username)
+
+    def check_access(self, username: str, permission: Permission) -> bool:
+        session = self.get_session(username)
+        if not session:
+            return False
+        return session.has_permission(permission)
