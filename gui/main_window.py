@@ -1,10 +1,8 @@
-"""
-Главное окно графического интерфейса пользователя
-"""
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
     QLabel, QPushButton, QTextEdit, QLineEdit, QComboBox, QTableWidget,
-    QTableWidgetItem, QHeaderView, QMessageBox, QGroupBox, QSplitter
+    QTableWidgetItem, QHeaderView, QMessageBox, QGroupBox, QSplitter,
+    QFileDialog
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -107,12 +105,6 @@ QGroupBox::title {
 }
 """
 
-
-
-
-
-
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -131,6 +123,8 @@ class MainWindow(QMainWindow):
         self.current_user = self.rbac.create_session("admin_root", "admin", "192.168.1.100")
 
         self.init_ui()
+        self.preload_demo_logs()
+        self.update_dashboard_metrics()
 
     def init_ui(self):
         central_widget = QWidget()
@@ -220,6 +214,10 @@ class MainWindow(QMainWindow):
         btn_verify = QPushButton("🛡️ Полная проверка целостности аудита (HMAC)")
         btn_verify.clicked.connect(self.verify_audit_integrity)
         act_layout.addWidget(btn_verify)
+
+        btn_export = QPushButton("💾 Экспорт отчета об инцидентах (JSON)")
+        btn_export.clicked.connect(self.export_audit_json)
+        act_layout.addWidget(btn_export)
 
         layout.addWidget(act_box)
         layout.addStretch()
@@ -405,34 +403,6 @@ class MainWindow(QMainWindow):
         self.current_user = self.rbac.create_session(username, role_str, "192.168.1.100")
         QMessageBox.information(self, "Смена сессии", f"Активная роль переключена на: {role_str.upper()}.\nПолномочия обновлены.")
 
-    def verify_audit_integrity(self):
-        corrupted = self.audit.verify_all_records()
-        if not corrupted:
-            QMessageBox.information(
-                self, "Проверка целостности",
-                "УСПЕШНО!\nВсе записи журнала аудита проверены с использованием имитовставки HMAC-SHA256.\nПризнаков модификации, подмены или удаления не обнаружено."
-            )
-        else:
-            QMessageBox.critical(
-                self, "НАРУШЕНИЕ ЦЕЛОСТНОСТИ!",
-                f"Обнаружена подделка или модификация записей журнала аудита! Поврежденные ID: {corrupted}"
-            )
-
-    def test_masking_fields(self):
-        phone = self.input_phone.text()
-        email = self.input_email.text()
-        passport = self.input_passport.text()
-
-        self.lbl_masked_phone.setText(f"Результат: {self.crypto.mask_phone(phone)}")
-        self.lbl_masked_email.setText(f"Результат: {self.crypto.mask_email(email)}")
-        self.lbl_masked_passport.setText(f"Результат: {self.crypto.mask_passport(passport)}")
-
-    def load_employees_table(self):
-        cols, rows = self.db.execute_raw_query("SELECT id, full_name, phone, email, salary_encrypted FROM employees")
-        self.table_employees.setColumnCount(len(cols))
-        self.table_employees.setRowCount(len(rows))
-        self.table_employees.setHorizontalHeaderLabels(cols)
-
     def on_preset_selected(self, idx):
         query = self.combo_presets.currentData()
         if query:
@@ -451,6 +421,79 @@ class MainWindow(QMainWindow):
         if not query:
             QMessageBox.warning(self, "Предупреждение", "Введите текст SQL-запроса!")
             return
+
+        # 1. Инспекция безопасности
+        result = self.sqli.inspect_query(query)
+        self.risk_indicator.set_risk(result.risk_score)
+        self.lbl_verdict.setText(f"Вердикт: {result.explanation}")
+
+        # 2. Логирование в аудит
+        is_blocked = (result.action == "BLOCK")
+        self.audit.log_event(
+            username=self.current_user.username,
+            client_ip=self.current_user.ip_address,
+            query=query,
+            risk_score=result.risk_score,
+            is_blocked=is_blocked,
+            incident_type=", ".join(result.attack_categories) if result.attack_categories else None
+        )
+        self.update_dashboard_metrics()
+        self.load_audit_table()
+
+        # 3. Блокировка при угрозе
+        if is_blocked:
+            QMessageBox.critical(
+                self, "Атака заблокирована!",
+                f"Запрос заблокирован встроенным экраном баз данных!\n\n"
+                f"Уровень риска: {result.risk_score}/100\n"
+                f"Категория: {', '.join(result.attack_categories)}\n"
+                f"Правила: {', '.join(result.matched_rules)}"
+            )
+            return
+
+        # 4. Выполнение в БД
+        try:
+            cols, rows = self.db.execute_raw_query(query)
+            # Применение динамического маскирования в зависимости от роли
+            can_see_raw = self.current_user.can_view_sensitive()
+
+            self.table_results.setColumnCount(len(cols))
+            self.table_results.setRowCount(len(rows))
+            self.table_results.setHorizontalHeaderLabels(cols)
+
+            for r_idx, row in enumerate(rows):
+                for c_idx, val in enumerate(row):
+                    col_name = cols[c_idx].lower()
+                    cell_str = str(val) if val is not None else "NULL"
+
+                    # Маскирование если нет прав
+                    if not can_see_raw:
+                        if "phone" in col_name:
+                            cell_str = self.crypto.mask_phone(cell_str)
+                        elif "email" in col_name:
+                            cell_str = self.crypto.mask_email(cell_str)
+                        elif "passport" in col_name:
+                            cell_str = self.crypto.mask_passport(cell_str)
+                        elif "salary" in col_name or "scholarship" in col_name:
+                            cell_str = self.crypto.mask_salary(cell_str)
+
+                    # Если поле зашифровано и пользователь имеет права
+                    if can_see_raw and ("encrypted" in col_name):
+                        decrypted = self.crypto.decrypt_field(cell_str)
+                        cell_str = f"{decrypted} [Расшифровано]"
+
+                    self.table_results.setItem(r_idx, c_idx, QTableWidgetItem(cell_str))
+
+            self.table_results.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка выполнения SQL", f"Ошибка СУБД: {str(e)}")
+
+    def preload_demo_logs(self):
+        """Заполняет аудит начальными тестовыми событиями."""
+        self.audit.log_event("admin_root", "192.168.1.10", "SELECT * FROM departments;", 5, False, None)
+        self.audit.log_event("operator_dept", "192.168.1.45", "SELECT id, full_name, phone FROM students WHERE group_name = 'БИБ-21';", 10, False, None)
+        self.audit.log_event("ext_attacker", "85.140.24.112", "SELECT * FROM users WHERE username = 'admin' OR '1'='1' --", 85, True, "Authentication Bypass")
+        self.audit.log_event("ext_attacker", "85.140.24.112", "SELECT full_name FROM students UNION SELECT passport_encrypted FROM employees; --", 95, True, "Information Disclosure")
 
     def load_audit_table(self, only_incidents=False):
         records = self.audit.get_incidents() if only_incidents else self.audit.records
@@ -478,3 +521,62 @@ class MainWindow(QMainWindow):
             status_str = "🛑 ЗАБЛОКИРОВАН" if r.is_blocked else "✅ Разрешен"
             self.table_audit.setItem(idx, 6, QTableWidgetItem(status_str))
             self.table_audit.setItem(idx, 7, QTableWidgetItem(r.query_text))
+
+    def update_dashboard_metrics(self):
+        total = len(self.audit.records)
+        threats = sum(1 for r in self.audit.records if r.is_blocked)
+        incidents = len(self.audit.get_incidents())
+        self.card_total.update_value(str(total))
+        self.card_threats.update_value(str(threats))
+        self.card_incidents.update_value(str(incidents))
+
+    def verify_audit_integrity(self):
+        corrupted = self.audit.verify_all_records()
+        if not corrupted:
+            QMessageBox.information(
+                self, "Проверка целостности",
+                "УСПЕШНО!\nВсе записи журнала аудита проверены с использованием имитовставки HMAC-SHA256.\nПризнаков модификации, подмены или удаления не обнаружено."
+            )
+        else:
+            QMessageBox.critical(
+                self, "НАРУШЕНИЕ ЦЕЛОСТНОСТИ!",
+                f"Обнаружена подделка или модификация записей журнала аудита! Поврежденные ID: {corrupted}"
+            )
+
+    def export_audit_json(self):
+        json_data = self.audit.export_json()
+        path, _ = QFileDialog.getSaveFileName(self, "Сохранить отчет об инцидентах", "security_audit_report.json", "JSON Files (*.json)")
+        if path:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(json_data)
+            QMessageBox.information(self, "Экспорт завершен", f"Отчет успешно сохранен в файл:\n{path}")
+
+    def test_masking_fields(self):
+        phone = self.input_phone.text()
+        email = self.input_email.text()
+        passport = self.input_passport.text()
+
+        self.lbl_masked_phone.setText(f"Результат: {self.crypto.mask_phone(phone)}")
+        self.lbl_masked_email.setText(f"Результат: {self.crypto.mask_email(email)}")
+        self.lbl_masked_passport.setText(f"Результат: {self.crypto.mask_passport(passport)}")
+
+    def load_employees_table(self):
+        cols, rows = self.db.execute_raw_query("SELECT id, full_name, phone, email, salary_encrypted FROM employees")
+        self.table_employees.setColumnCount(len(cols))
+        self.table_employees.setRowCount(len(rows))
+        self.table_employees.setHorizontalHeaderLabels(cols)
+
+        can_see = self.current_user.can_view_sensitive()
+        for r_idx, row in enumerate(rows):
+            for c_idx, val in enumerate(row):
+                cell_str = str(val)
+                col_name = cols[c_idx].lower()
+                if not can_see:
+                    if "phone" in col_name:
+                        cell_str = self.crypto.mask_phone(cell_str)
+                    elif "email" in col_name:
+                        cell_str = self.crypto.mask_email(cell_str)
+                    elif "salary" in col_name:
+                        cell_str = self.crypto.mask_salary(cell_str)
+                self.table_employees.setItem(r_idx, c_idx, QTableWidgetItem(cell_str))
+        self.table_employees.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
