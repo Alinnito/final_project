@@ -3,6 +3,7 @@
 Определяет роли, матрицу полномочий, валидацию сессий пользователей
 """
 from enum import Enum
+from typing import Dict, Set
 
 class Permission(Enum):
     READ_PUBLIC = "read_public"
@@ -19,3 +20,33 @@ class Role(Enum):
     DEPARTMENT_OPERATOR = "department_operator"
     ANALYST = "analyst"
     GUEST = "guest"
+
+# Матрица прав доступа
+ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
+    Role.ADMIN: {
+        Permission.READ_PUBLIC,
+        Permission.READ_SENSITIVE,
+        Permission.WRITE_DATA,
+        Permission.EXECUTE_DDL,
+        Permission.CONFIGURE_SECURITY,
+        Permission.VIEW_AUDIT_LOGS,
+        Permission.EXPORT_INCIDENTS
+    },
+    Role.SECURITY_OFFICER: {
+        Permission.READ_PUBLIC,
+        Permission.CONFIGURE_SECURITY,
+        Permission.VIEW_AUDIT_LOGS,
+        Permission.EXPORT_INCIDENTS
+    },
+    Role.DEPARTMENT_OPERATOR: {
+        Permission.READ_PUBLIC,
+        Permission.WRITE_DATA
+    },
+    Role.ANALYST: {
+        Permission.READ_PUBLIC,
+        Permission.VIEW_AUDIT_LOGS
+    },
+    Role.GUEST: {
+        Permission.READ_PUBLIC
+    }
+}
