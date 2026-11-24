@@ -1,4 +1,5 @@
 import hmac
+import hashlib
 from typing import Optional
 from core.config import SecurityConfig
 from cryptography.fernet import Fernet
@@ -23,5 +24,19 @@ class CryptoEngine:
         try:
             decrypted_bytes = self.fernet.decrypt(ciphertext.encode("utf-8"))
             return decrypted_bytes.decode("utf-8")
-        except InvalidToken:
+        except Exception:
             return "[DECRYPTION_ERROR: INVALID_KEY_OR_DATA]"
+
+    def compute_hmac(self, data_string: str) -> str:
+        """Вычисляет HMAC-SHA256 от строки данных с секретным ключом аудита."""
+        signature = hmac.new(
+            self.hmac_secret,
+            data_string.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+        return signature
+
+    def verify_hmac(self, data_string: str, expected_hmac: str) -> bool:
+        """Проверяет целостность записи журнала аудита."""
+        actual_hmac = self.compute_hmac(data_string)
+        return hmac.compare_digest(actual_hmac, expected_hmac)
