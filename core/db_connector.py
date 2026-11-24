@@ -1,7 +1,10 @@
 """
-Модуль подключения к базе данных (Database Connector).
+Модуль подключения к базе данных (Database Connector)
+Обеспечивает работу с PostgreSQL, а также автономный режим на встроенной SQLite
+для демонстрации работы комплекса в любой среде (например, без запущенного локального сервера СУБД)
 """
-from typing import Optional, Tuple, List
+import sqlite3
+from typing import List, Tuple, Optional
 from core.config import DatabaseConfig
 from core.crypto_engine import CryptoEngine
 
@@ -10,11 +13,12 @@ class DBConnector:
         self.config = config or DatabaseConfig()
         self.crypto = crypto or CryptoEngine()
         self.is_connected = False
-        self.mode = "PostgreSQL"
+        self.mode = "SQLite (Автономный демонстрационный режим)"
         self.conn = None
         self._init_database()
 
     def _init_database(self):
+        """Пытается подключиться к PostgreSQL; при недоступности инициализирует локальную БД SQLite"""
         # Проверяем PostgreSQL
         try:
             import psycopg2
@@ -31,10 +35,18 @@ class DBConnector:
             self.is_connected = True
             return
         except Exception:
+            # Fallback to SQLite
             pass
 
+        # Инициализация SQLite
+        db_path = self.config.sqlite_path
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.mode = "SQLite (Локальный демонстрационный контур)"
+        self.is_connected = True
+        self._seed_sample_data()
+
     def _seed_sample_data(self):
-        """Создает демонстрационные таблицы и наполняет их тестовыми данными с шифрованием."""
+        """Создает демонстрационные таблицы и наполняет их тестовыми данными с шифрованием"""
         cursor = self.conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS departments (
