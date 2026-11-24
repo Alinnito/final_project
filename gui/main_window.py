@@ -2,9 +2,9 @@
 Главное окно графического интерфейса пользователя
 """
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QTabWidget,
-    QPushButton, QTextEdit, QLineEdit, QComboBox, QTableWidget,
-    QHeaderView, QGroupBox
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
+    QLabel, QPushButton, QTextEdit, QLineEdit, QComboBox, QTableWidget,
+    QTableWidgetItem, QHeaderView, QMessageBox, QGroupBox, QSplitter
 )
 from PySide6.QtCore import Qt
 
@@ -13,6 +13,7 @@ from core.sqli_detector import SQLiDetector
 from core.audit_logger import AuditLogger
 from core.rbac_manager import RBACManager
 from core.db_connector import DBConnector
+from gui.widgets import MetricCard
 
 DARK_STYLE = """
 QMainWindow {
@@ -123,5 +124,117 @@ class MainWindow(QMainWindow):
         self.current_user = self.rbac.create_session("admin_root", "admin", "192.168.1.100")
 
         self.init_ui()
-        self.preload_demo_logs()
-        self.update_dashboard_metrics()
+
+    def init_ui(self):
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(10)
+
+        # Верхняя панель статуса
+        top_bar = QHBoxLayout()
+        lbl_brand = QLabel("🛡️ DBSecGuard Enterprise")
+        lbl_brand.setStyleSheet("font-size: 16px; font-weight: bold; color: #00b4d8;")
+        top_bar.addWidget(lbl_brand)
+
+        top_bar.addStretch()
+
+        self.lbl_status = QLabel(f"СУБД: {self.db.mode}")
+        self.lbl_status.setStyleSheet("color: #a0aec0; font-size: 12px; background: #252a33; padding: 4px 10px; border-radius: 4px;")
+        top_bar.addWidget(self.lbl_status)
+
+        lbl_user = QLabel("Оператор:")
+        top_bar.addWidget(lbl_user)
+
+        self.combo_user_role = QComboBox()
+        self.combo_user_role.addItems(["Admin (Полный доступ)", "Security_Officer (Офицер ИБ)", "Department_Operator (Оператор)", "Guest (Гость)"])
+        self.combo_user_role.currentIndexChanged.connect(self.on_role_changed)
+        top_bar.addWidget(self.combo_user_role)
+
+        main_layout.addLayout(top_bar)
+
+        # Вкладки
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+
+        self.tab_dash = QWidget()
+        self.tab_inspector = QWidget()
+        self.tab_audit = QWidget()
+        self.tab_masking = QWidget()
+        self.tab_rbac = QWidget()
+
+        self.tabs.addTab(self.tab_dash, "📊 Дашборд безопасности")
+        self.tabs.addTab(self.tab_inspector, "🔍 Инспектор запросов и WAF")
+        self.tabs.addTab(self.tab_audit, "📋 Журнал аудита и инциденты")
+        self.tabs.addTab(self.tab_masking, "🔒 Маскирование и шифрование")
+        self.tabs.addTab(self.tab_rbac, "👥 Политики доступа RBAC")
+
+        self.setup_dash_tab()
+
+    def setup_dash_tab(self):
+        layout = QVBoxLayout(self.tab_dash)
+        layout.setSpacing(12)
+
+        # Карточки метрик
+        cards_layout = QHBoxLayout()
+        self.card_total = MetricCard("Всего запросов", "0", "обработано шлюзом", "#00b4d8")
+        self.card_threats = MetricCard("Отражено атак", "0", "SQLi и инъекции", "#e63946")
+        self.card_incidents = MetricCard("Инцидентов ИБ", "0", "высокой важности", "#f4a261")
+        self.card_integrity = MetricCard("Целостность логов", "100%", "HMAC-SHA256 подпись", "#2a9d8f")
+
+        cards_layout.addWidget(self.card_total)
+        cards_layout.addWidget(self.card_threats)
+        cards_layout.addWidget(self.card_incidents)
+        cards_layout.addWidget(self.card_integrity)
+        layout.addLayout(cards_layout)
+
+        # Блок описания состояния безопасности
+        gb_state = QGroupBox("Текущий статус подсистемы информационной безопасности")
+        gb_layout = QVBoxLayout(gb_state)
+        lbl_info = QLabel(
+            "• Механизм фильтрации запросов (DB Firewall): АКТИВЕН (сигнатурный и эвристический анализ)\n"
+            "• Динамическое маскирование персональных данных (DDM): ВКЛЮЧЕНО для номеров телефонов, email, паспортов\n"
+            "• Криптографическая защита конфиденциальных полей: AES-128 Fernet с ключом из защищенного хранилища\n"
+            "• Неизменяемый аудит транзакций: АКТИВЕН с расчетом цифровой контрольной суммы HMAC для каждой записи\n"
+            "• Политики разграничения доступа: Ролевая модель RBAC с контролем доступа к строкам и атрибутам"
+        )
+        lbl_info.setStyleSheet("color: #cbd5e1; line-height: 150%; font-size: 13px;")
+        gb_layout.addWidget(lbl_info)
+        layout.addWidget(gb_state)
+
+        # Быстрые действия
+        act_box = QGroupBox("Быстрые операции управления безопасностью")
+        act_layout = QHBoxLayout(act_box)
+        btn_verify = QPushButton("🛡️ Полная проверка целостности аудита (HMAC)")
+        btn_verify.clicked.connect(self.verify_audit_integrity)
+        act_layout.addWidget(btn_verify)
+
+        layout.addWidget(act_box)
+        layout.addStretch()
+
+    # --- Обработчики событий ---
+
+    def on_role_changed(self, idx):
+        roles_map = {
+            0: ("admin_root", "admin"),
+            1: ("sec_officer", "security_officer"),
+            2: ("operator_dept", "department_operator"),
+            3: ("guest_user", "guest")
+        }
+        username, role_str = roles_map.get(idx, ("guest_user", "guest"))
+        self.current_user = self.rbac.create_session(username, role_str, "192.168.1.100")
+        QMessageBox.information(self, "Смена сессии", f"Активная роль переключена на: {role_str.upper()}.\nПолномочия обновлены.")
+
+    def verify_audit_integrity(self):
+        corrupted = self.audit.verify_all_records()
+        if not corrupted:
+            QMessageBox.information(
+                self, "Проверка целостности",
+                "УСПЕШНО!\nВсе записи журнала аудита проверены с использованием имитовставки HMAC-SHA256.\nПризнаков модификации, подмены или удаления не обнаружено."
+            )
+        else:
+            QMessageBox.critical(
+                self, "НАРУШЕНИЕ ЦЕЛОСТНОСТИ!",
+                f"Обнаружена подделка или модификация записей журнала аудита! Поврежденные ID: {corrupted}"
+            )
