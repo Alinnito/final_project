@@ -204,12 +204,10 @@ class MainWindow(QMainWindow):
         # Карточки метрик
         cards_layout = QHBoxLayout()
         self.card_total = MetricCard("Всего запросов", "0", "обработано шлюзом", "#00b4d8")
-        self.card_threats = MetricCard("Отражено атак", "0", "SQLi и инъекции", "#e63946")
         self.card_incidents = MetricCard("Инцидентов ИБ", "0", "высокой важности", "#f4a261")
-        self.card_integrity = MetricCard("Целостность логов", "100%", "HMAC-SHA256 подпись", "#2a9d8f")
+        self.card_integrity = MetricCard("Целостность логов", "✅", "HMAC-SHA256 подпись", "#2a9d8f")
 
         cards_layout.addWidget(self.card_total)
-        cards_layout.addWidget(self.card_threats)
         cards_layout.addWidget(self.card_incidents)
         cards_layout.addWidget(self.card_integrity)
         layout.addLayout(cards_layout)
@@ -234,6 +232,10 @@ class MainWindow(QMainWindow):
         btn_verify = QPushButton("🛡️ Полная проверка целостности аудита (HMAC)")
         btn_verify.clicked.connect(self.verify_audit_integrity)
         act_layout.addWidget(btn_verify)
+
+        btn_tamper = QPushButton("🧪 Симулировать подделку аудита")
+        btn_tamper.clicked.connect(self.simulate_tampering)
+        act_layout.addWidget(btn_tamper)
 
         btn_export = QPushButton("💾 Экспорт отчета об инцидентах (JSON)")
         btn_export.clicked.connect(self.export_audit_json)
@@ -544,20 +546,20 @@ class MainWindow(QMainWindow):
 
     def update_dashboard_metrics(self):
         total = len(self.audit.records)
-        threats = sum(1 for r in self.audit.records if r.is_blocked)
         incidents = len(self.audit.get_incidents())
         self.card_total.update_value(str(total))
-        self.card_threats.update_value(str(threats))
         self.card_incidents.update_value(str(incidents))
 
     def verify_audit_integrity(self):
         corrupted = self.audit.verify_all_records()
         if not corrupted:
+            self.card_integrity.update_value("✅")
             QMessageBox.information(
                 self, "Проверка целостности",
                 "УСПЕШНО!\nВсе записи журнала аудита проверены с использованием имитовставки HMAC-SHA256.\nПризнаков модификации, подмены или удаления не обнаружено."
             )
         else:
+            self.card_integrity.update_value ("❌")
             QMessageBox.critical(
                 self, "НАРУШЕНИЕ ЦЕЛОСТНОСТИ!",
                 f"Обнаружена подделка или модификация записей журнала аудита! Поврежденные ID: {corrupted}"
@@ -604,3 +606,12 @@ class MainWindow(QMainWindow):
                         cell_str = self.crypto.mask_salary(cell_str)
                 self.table_employees.setItem(r_idx, c_idx, QTableWidgetItem(cell_str))
         self.table_employees.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+    def simulate_tampering(self):
+        if not self.audit.records:
+            QMessageBox.warning(self, "Нет записей", "Сначала выполните хотя бы один запрос.")
+            return
+        # Изменение записи аудита
+        self.audit.records[-1].query_text = "SELECT * FROM tampered_data;"
+        QMessageBox.information(self, "Симуляция",
+                                "Запись аудита изменена. Нажмите «Проверить целостность», чтобы увидеть обнаружение.")
