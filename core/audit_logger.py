@@ -113,7 +113,8 @@ class AuditLogger:
         """Проверяет целостность всех записей в журнале аудита. Возвращает список поврежденных ID"""
         corrupted_ids = []
         for r in self.records:
-            data_to_verify = f"{r.record_id}|{r.timestamp}|{r.username}|{r.client_ip}|{r.query_text}|{r.operation}|{r.risk_score}|{r.is_blocked}"
+            data_to_verify = (f"{r.record_id}|{r.timestamp}|{r.username}|{r.client_ip}|"
+                              f"{r.query_text}|{r.operation}|{r.risk_score}|{r.is_blocked}")
             if not self.crypto_engine.verify_hmac(data_to_verify, r.integrity_hmac):
                 corrupted_ids.append(r.record_id)
         return corrupted_ids

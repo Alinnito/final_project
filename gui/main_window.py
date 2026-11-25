@@ -611,7 +611,19 @@ class MainWindow(QMainWindow):
         if not self.audit.records:
             QMessageBox.warning(self, "Нет записей", "Сначала выполните хотя бы один запрос.")
             return
+
+        target = self.audit.records[-1]
+
         # Изменение записи аудита
-        self.audit.records[-1].query_text = "SELECT * FROM tampered_data;"
+        target.query_text = "SELECT * FROM tampered_data;"
+
+        ph = "%s" if self.db.mode.startswith("PostgreSQL") else "?"
+        cursor = self.db.conn.cursor()
+        cursor.execute(
+            f"UPDATE audit_logs SET query_text = {ph} WHERE id = {ph}",
+            ("SELECT * FROM tampered_data;", target.record_id)
+        )
+        self.db.conn.commit()
+
         QMessageBox.information(self, "Симуляция",
                                 "Запись аудита изменена. Нажмите «Проверить целостность», чтобы увидеть обнаружение.")
