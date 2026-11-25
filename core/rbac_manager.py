@@ -18,7 +18,6 @@ class Role(Enum):
     ADMIN = "admin"
     SECURITY_OFFICER = "security_officer"
     DEPARTMENT_OPERATOR = "department_operator"
-    ANALYST = "analyst"
     GUEST = "guest"
 
 # Матрица прав доступа
@@ -41,10 +40,6 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
     Role.DEPARTMENT_OPERATOR: {
         Permission.READ_PUBLIC,
         Permission.WRITE_DATA
-    },
-    Role.ANALYST: {
-        Permission.READ_PUBLIC,
-        Permission.VIEW_AUDIT_LOGS
     },
     Role.GUEST: {
         Permission.READ_PUBLIC

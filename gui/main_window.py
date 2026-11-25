@@ -10,7 +10,7 @@ from PySide6.QtGui import QColor
 from core.crypto_engine import CryptoEngine
 from core.sqli_detector import SQLiDetector
 from core.audit_logger import AuditLogger
-from core.rbac_manager import RBACManager
+from core.rbac_manager import RBACManager, Permission
 from core.db_connector import DBConnector
 from gui.widgets import MetricCard, RiskIndicator
 
@@ -188,6 +188,14 @@ class MainWindow(QMainWindow):
         self.setup_audit_tab()
         self.setup_masking_tab()
         self.setup_rbac_tab()
+
+        if not self.current_user.has_permission(Permission.VIEW_AUDIT_LOGS):
+            # Находим индекс вкладки аудита и скрываем её
+            for i in range(self.tabs.count()):
+                if self.tabs.tabText(i).startswith("📋"):
+                    self.tabs.setTabVisible(i, False)
+                    break
+
 
     def setup_dash_tab(self):
         layout = QVBoxLayout(self.tab_dash)
@@ -379,18 +387,17 @@ class MainWindow(QMainWindow):
         roles_layout = QVBoxLayout(gb_roles)
 
         tbl = QTableWidget()
-        tbl.setColumnCount(6)
+        tbl.setColumnCount(5)
         tbl.setHorizontalHeaderLabels([
-            "Роль", "Чтение публичных", "Чтение чувствительных (ПДн)", "Запись данных", "Конфигурация ИБ", "Просмотр аудита"
+            "Роль", "Чтение публичных", "Чтение чувствительных (ПДн)", "Запись данных", "Просмотр аудита"
         ])
         tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
         matrix = [
-            ("Admin (DBA)", "✅ Да", "✅ Да (полный)", "✅ Да", "✅ Да", "✅ Да"),
-            ("Security Officer (Офицер ИБ)", "✅ Да", "❌ Нет (маскировано)", "❌ Нет", "✅ Да", "✅ Да"),
-            ("Department Operator (Оператор)", "✅ Да", "❌ Нет (маскировано)", "✅ Да", "❌ Нет", "❌ Нет"),
-            ("Analyst (Аналитик)", "✅ Да", "❌ Нет (маскировано)", "❌ Нет", "❌ Нет", "✅ Да"),
-            ("Guest (Гость)", "✅ Да (ограничено)", "❌ Нет", "❌ Нет", "❌ Нет", "❌ Нет")
+            ("Admin (DBA)", "✅ Да", "✅ Да (полный)", "✅ Да", "✅ Да"),
+            ("Security Officer (Офицер ИБ)", "✅ Да", "❌ Нет (маскировано)", "❌ Нет", "✅ Да"),
+            ("Department Operator (Оператор)", "✅ Да", "❌ Нет (маскировано)", "✅ Да", "❌ Нет"),
+            ("Guest (Гость)", "✅ Да (ограничено)", "❌ Нет", "❌ Нет", "❌ Нет")
         ]
         tbl.setRowCount(len(matrix))
         for row_idx, row_data in enumerate(matrix):
@@ -450,6 +457,18 @@ class MainWindow(QMainWindow):
                 f"Категория: {', '.join(result.attack_categories)}\n"
                 f"Правила: {', '.join(result.matched_rules)}"
             )
+            return
+
+        # После проверки WAF, перед выполнением
+        first_word = query.strip().split()[0].upper() if query.strip() else ""
+        ddl_ops = {"DROP", "ALTER", "CREATE", "TRUNCATE"}
+        dml_ops = {"INSERT", "UPDATE", "DELETE"}
+
+        if first_word in ddl_ops and not self.current_user.has_permission(Permission.EXECUTE_DDL):
+            QMessageBox.warning(self, "Доступ запрещён", "Нет прав на выполнение DDL-операций.")
+            return
+        if first_word in dml_ops and not self.current_user.has_permission(Permission.WRITE_DATA):
+            QMessageBox.warning(self, "Доступ запрещён", "Нет прав на изменение данных.")
             return
 
         # 4. Выполнение в БД

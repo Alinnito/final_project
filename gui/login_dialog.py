@@ -9,10 +9,10 @@ from PySide6.QtCore import Qt
 import hashlib
 
 DEMO_USERS = {
-    "sa":    (hashlib.sha256(b"1234").hexdigest(),    "admin", 1),
-    "sec_officer":   (hashlib.sha256(b"SecOfficer2026!").hexdigest(),   "security_officer", 1),
-    "operator_dept": (hashlib.sha256(b"Operator2026!").hexdigest(),     "department_operator", 2),
-    "guest_user":    (hashlib.sha256(b"Guest2026!").hexdigest(),        "guest", 1),
+    "sa": (hashlib.sha256(b"1234").hexdigest(),"admin", 1),
+    "sec_officer": (hashlib.sha256(b"SecOfficer2026!").hexdigest(),"security_officer", 1),
+    "operator_dept": (hashlib.sha256(b"Operator2026!").hexdigest(), "department_operator", 2),
+    "guest_user": (hashlib.sha256(b"Guest2026!").hexdigest(), "guest", 1),
 }
 
 class LoginDialog(QDialog):
@@ -23,7 +23,7 @@ class LoginDialog(QDialog):
         self.rbac = rbac_manager
         self.session = None
 
-        self.setWindowTitle("DBSecGuard — Вход в систему")
+        self.setWindowTitle("DBSecGuard - Вход в систему")
         self.setFixedSize(420, 320)
         self.setStyleSheet("""
             QDialog { background-color: #191b1f; }
