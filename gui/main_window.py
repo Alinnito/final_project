@@ -78,6 +78,15 @@ QLineEdit, QTextEdit, QComboBox {
 QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
     border: 1px solid #00b4d8;
 }
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    color: #000000;
+    selection-background-color: #007acc;
+    selection-color: #ffffff;
+}
+QMessageBox QLabel {
+    color: #000000
+}
 QTableWidget {
     background-color: #191b1f;
     border: 1px solid #333942;
@@ -117,7 +126,6 @@ class MainWindow(QMainWindow):
         self.rbac = rbac or RBACManager()
         self.db = DBConnector(crypto=self.crypto)
 
-        # Сессия приходит из LoginDialog; если не передана — гость (для отладки)
         self.current_user = current_user or self.rbac.create_session(
             "guest_user", "guest", "127.0.0.1"
         )
@@ -148,19 +156,14 @@ class MainWindow(QMainWindow):
         lbl_user = QLabel("Оператор:")
         top_bar.addWidget(lbl_user)
 
-        self.combo_user_role = QComboBox()
-        self.combo_user_role.addItems(["Admin (Полный доступ)", "Security_Officer (Офицер ИБ)", "Department_Operator (Оператор)", "Guest (Гость)"])
-        role_index_map = {
-            "admin": 0,
-            "security_officer": 1,
-            "department_operator": 2,
-            "guest": 3,
-        }
-        self.combo_user_role.setCurrentIndex(
-            role_index_map.get(self.current_user.role.value, 3)
+        self.lbl_current_role = QLabel(
+            f"{self.current_user.username} ({self.current_user.role.value})"
         )
-        self.combo_user_role.currentIndexChanged.connect(self.on_role_changed)
-        top_bar.addWidget(self.combo_user_role)
+        self.lbl_current_role.setStyleSheet(
+            "color: #00b4d8; font-size: 12px; font-weight: bold; "
+            "background: #252a33; padding: 4px 10px; border-radius: 4px;"
+        )
+        top_bar.addWidget(self.lbl_current_role)
 
         main_layout.addLayout(top_bar)
 
@@ -401,17 +404,6 @@ class MainWindow(QMainWindow):
 
     # --- Обработчики событий ---
 
-    def on_role_changed(self, idx):
-        roles_map = {
-            0: ("admin_root", "admin"),
-            1: ("sec_officer", "security_officer"),
-            2: ("operator_dept", "department_operator"),
-            3: ("guest_user", "guest")
-        }
-        username, role_str = roles_map.get(idx, ("guest_user", "guest"))
-        self.current_user = self.rbac.create_session(username, role_str, "192.168.1.100")
-        QMessageBox.information(self, "Смена сессии", f"Активная роль переключена на: {role_str.upper()}.\nПолномочия обновлены.")
-
     def on_preset_selected(self, idx):
         query = self.combo_presets.currentData()
         if query:
@@ -554,7 +546,11 @@ class MainWindow(QMainWindow):
 
     def export_audit_json(self):
         json_data = self.audit.export_json()
-        path, _ = QFileDialog.getSaveFileName(self, "Сохранить отчет об инцидентах", "security_audit_report.json", "JSON Files (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить отчет об инцидентах",
+            "security_audit_report.json",
+            "JSON Files (*.json)")
         if path:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(json_data)
