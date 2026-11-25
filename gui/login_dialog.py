@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QPushButton, QMessageBox
 )
 from PySide6.QtCore import Qt
+from PySide6.QtNetwork import QNetworkInterface, QHostAddress, QAbstractSocket
 import hashlib
 
 DEMO_USERS = {
@@ -16,7 +17,7 @@ DEMO_USERS = {
 }
 
 class LoginDialog(QDialog):
-    """Диалог входа: логин, пароль, IP-адрес клиента"""
+    """Диалог входа: логин, пароль, IP-адрес """
 
     def __init__(self, rbac_manager, parent=None):
         super().__init__(parent)
@@ -66,8 +67,15 @@ class LoginDialog(QDialog):
         self.txt_password.returnPressed.connect(self.try_login)
         layout.addWidget(self.txt_password)
 
-        layout.addWidget(QLabel("IP-адрес клиента:"))
-        self.txt_ip = QLineEdit("192.168.1.100")
+        def get_real_ip():
+            for address in QNetworkInterface.allAddresses():
+                # IPv4
+                if address.protocol() == QAbstractSocket.IPv4Protocol and not address.isLoopback():
+                    return address.toString()
+            return "127.0.0.1"
+
+        layout.addWidget(QLabel("IP-адрес:"))
+        self.txt_ip = QLineEdit(get_real_ip())
         layout.addWidget(self.txt_ip)
 
         btn_layout = QHBoxLayout()
