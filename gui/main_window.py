@@ -121,17 +121,17 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(DARK_STYLE)
 
         self.crypto = CryptoEngine()
-        self.sqli = SQLiDetector()
-        self.audit = AuditLogger(self.crypto)
-        self.rbac = rbac or RBACManager()
         self.db = DBConnector(crypto=self.crypto)
+        self.sqli = SQLiDetector()
+        self.audit = AuditLogger(self.crypto, db_connector=self.db)
+        self.rbac = rbac or RBACManager()
 
         self.current_user = current_user or self.rbac.create_session(
             "guest_user", "guest", "127.0.0.1"
         )
 
         self.init_ui()
-        self.preload_demo_logs()
+        # self.preload_demo_logs() тестовые записи для аудита
         self.update_dashboard_metrics()
 
     def init_ui(self):
