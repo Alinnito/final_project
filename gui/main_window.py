@@ -237,6 +237,11 @@ class MainWindow(QMainWindow):
         btn_tamper.clicked.connect(self.simulate_tampering)
         act_layout.addWidget(btn_tamper)
 
+        btn_repair = QPushButton("🔧 Восстановить целостность аудита (пересчёт HMAC)")
+        btn_repair.setObjectName("btn_success")
+        btn_repair.clicked.connect(self.repair_audit_integrity)
+        act_layout.addWidget(btn_repair)
+
         btn_export = QPushButton("💾 Экспорт отчета об инцидентах (JSON)")
         btn_export.clicked.connect(self.export_audit_json)
         act_layout.addWidget(btn_export)
@@ -627,3 +632,27 @@ class MainWindow(QMainWindow):
 
         QMessageBox.information(self, "Симуляция",
                                 "Запись аудита изменена. Нажмите «Проверить целостность», чтобы увидеть обнаружение.")
+
+    def repair_audit_integrity(self):
+        """Пересчитывает HMAC для всех записей и обновляет БД"""
+        if not self.audit.records:
+            QMessageBox.warning(self, "Нет записей", "Журнал аудита пуст.")
+            return
+
+        # Есть ли что восстанавливать
+        corrupted = self.audit.verify_all_records()
+        if not corrupted:
+            QMessageBox.information(
+                self, "Восстановление не требуется",
+                "Все записи журнала аудита уже целостны."
+            )
+            return
+
+        repaired = self.audit.repair_integrity()
+        QMessageBox.information(
+            self, "Целостность восстановлена",
+            f"Пересчитаны HMAC для {repaired} записей.\n"
+            f"Повреждённые ID были: {corrupted}.\n"
+            f"Теперь проверка целостности должна пройти успешно."
+        )
+        self.load_audit_table()

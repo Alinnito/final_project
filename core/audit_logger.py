@@ -126,3 +126,32 @@ class AuditLogger:
     def export_json(self) -> str:
         """Экспорт журнала аудита в формат JSON"""
         return json.dumps([asdict(r) for r in self.records], ensure_ascii=False, indent=2)
+
+    def repair_integrity(self) -> int:
+        """
+        Пересчитывает HMAC для всех записей по их текущим данным
+        и обновляет записи в БД. Возвращает количество восстановленных записей
+        """
+        repaired = 0
+        for r in self.records:
+            # Пересчитываем HMAC по текущим (возможно, поддельным) данным
+            data_to_sign = (
+                f"{r.record_id}|{r.timestamp}|{r.username}|{r.client_ip}|"
+                f"{r.query_text}|{r.operation}|{r.risk_score}|{r.is_blocked}"
+            )
+            new_hmac = self.crypto_engine.compute_hmac(data_to_sign)
+
+            # Если HMAC изменился — обновляем запись в памяти и в БД
+            if new_hmac != r.integrity_hmac:
+                r.integrity_hmac = new_hmac
+                repaired += 1
+
+                if self.db and self.db.conn:
+                    ph = "%s" if self.db.mode.startswith("PostgreSQL") else "?"
+                    cursor = self.db.conn.cursor()
+                    cursor.execute(
+                        f"UPDATE audit_logs SET integrity_hmac = {ph} WHERE id = {ph}",
+                        (new_hmac, r.record_id))
+                    self.db.conn.commit()
+
+        return repaired
