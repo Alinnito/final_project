@@ -169,15 +169,19 @@ class DBConnector:
             self.conn.commit()
 
     def execute_raw_query(self, query: str) -> Tuple[List[str], List[Tuple]]:
-        """Выполняет прямой запрос к СУБД и возвращает (колонки, строки)."""
-        cursor = self.conn.cursor()
-        cursor.execute(query)
-        if cursor.description:
-            columns = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
-            return columns, rows
-        self.conn.commit()
-        return ["Результат"], [("Операция успешно завершена",)]
+        """Выполняет прямой запрос к СУБД и возвращает (колонки, строки)"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(query)
+            if cursor.description:
+                columns = [desc[0] for desc in cursor.description]
+                rows = cursor.fetchall()
+                return columns, rows
+            self.conn.commit()
+            return ["Результат"], [("Операция успешно завершена",)]
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def close(self):
         if self.conn:
