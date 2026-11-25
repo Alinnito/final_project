@@ -216,11 +216,11 @@ class MainWindow(QMainWindow):
         gb_state = QGroupBox("Текущий статус подсистемы информационной безопасности")
         gb_layout = QVBoxLayout(gb_state)
         lbl_info = QLabel(
-            "• Механизм фильтрации запросов (DB Firewall): АКТИВЕН (сигнатурный и эвристический анализ)\n"
+            "• Механизм фильтрации запросов (WAF на уровне приложения): АКТИВЕН (сигнатурный и эвристический анализ)\n"
             "• Динамическое маскирование персональных данных (DDM): ВКЛЮЧЕНО для номеров телефонов, email, паспортов\n"
-            "• Криптографическая защита конфиденциальных полей: AES-128 Fernet с ключом из защищенного хранилища\n"
-            "• Неизменяемый аудит транзакций: АКТИВЕН с расчетом цифровой контрольной суммы HMAC для каждой записи\n"
-            "• Политики разграничения доступа: Ролевая модель RBAC с контролем доступа к строкам и атрибутам"
+            "• Криптографическая защита конфиденциальных полей: AES-128 Fernet; ключ задаётся в конфигурации приложения\n"
+            "• Аудит транзакций: АКТИВЕН с расчетом цифровой контрольной суммы HMAC для каждой записи\n"
+            "• Политики разграничения доступа: Ролевая модель RBAC с контролем доступа к атрибутам через маскирование"
         )
         lbl_info.setStyleSheet("color: #cbd5e1; line-height: 150%; font-size: 13px;")
         gb_layout.addWidget(lbl_info)
@@ -262,13 +262,20 @@ class MainWindow(QMainWindow):
         preset_layout.addWidget(QLabel("Выбрать тестовый шаблон запроса:"))
         self.combo_presets = QComboBox()
         self.combo_presets.addItem("--- Пользовательский ввод ---", "")
-        self.combo_presets.addItem("Легитимный: Выборка студентов кафедры", "SELECT id, full_name, group_name FROM students WHERE group_name = 'БИБ-21';")
-        self.combo_presets.addItem("Легитимный: Запрос данных сотрудника", "SELECT id, full_name, phone, email FROM employees WHERE id = 1;")
-        self.combo_presets.addItem("Атака SQLi 1: Логическое тождество (Tautology Bypass)", "SELECT * FROM users WHERE username = 'admin' OR '1'='1' -- AND pass = 'pwd';")
-        self.combo_presets.addItem("Атака SQLi 2: Внедрение UNION SELECT для кражи данных", "SELECT full_name FROM students UNION SELECT passport_encrypted FROM employees; --")
-        self.combo_presets.addItem("Атака SQLi 3: Составной запрос (Stacked Query / DROP)", "SELECT id FROM employees; DROP TABLE students; --")
-        self.combo_presets.addItem("Атака SQLi 4: Слепая инъекция по времени (Time-Based)", "SELECT * FROM employees WHERE id = 1 AND pg_sleep(5);")
-        self.combo_presets.addItem("Атака SQLi 5: Попытка чтения системного каталога", "SELECT table_name FROM information_schema.tables WHERE table_schema='public';")
+        self.combo_presets.addItem("Легитимный: Выборка студентов кафедры",
+                                   "SELECT id, full_name, group_name FROM students WHERE group_name = 'БИБ-21';")
+        self.combo_presets.addItem("Легитимный: Запрос данных сотрудника",
+                                   "SELECT id, full_name, phone, email FROM employees WHERE id = 1;")
+        self.combo_presets.addItem("Атака SQLi 1: Логическое тождество (Tautology Bypass)",
+                                   "SELECT * FROM users WHERE username = 'admin' OR '1'='1' -- AND pass = 'pwd';")
+        self.combo_presets.addItem("Атака SQLi 2: Внедрение UNION SELECT для кражи данных",
+                                   "SELECT full_name FROM students UNION SELECT passport_encrypted FROM employees; --")
+        self.combo_presets.addItem("Атака SQLi 3: Составной запрос (Stacked Query / DROP)",
+                                   "SELECT id FROM employees; DROP TABLE students; --")
+        self.combo_presets.addItem("Атака SQLi 4: Слепая инъекция по времени (Time-Based)",
+                                   "SELECT * FROM employees WHERE id = 1 AND pg_sleep(5);")
+        self.combo_presets.addItem("Атака SQLi 5: Попытка чтения системного каталога",
+                                   "SELECT table_name FROM information_schema.tables WHERE table_schema='public';")
         self.combo_presets.currentIndexChanged.connect(self.on_preset_selected)
         preset_layout.addWidget(self.combo_presets)
         top_layout.addLayout(preset_layout)
@@ -396,7 +403,7 @@ class MainWindow(QMainWindow):
         tbl = QTableWidget()
         tbl.setColumnCount(5)
         tbl.setHorizontalHeaderLabels([
-            "Роль", "Чтение публичных", "Чтение чувствительных (ПДн)", "Запись данных", "Просмотр аудита"
+            "Роль", "Чтение", "Чтение чувствительных (ПДн)", "Запись данных", "Просмотр аудита"
         ])
         tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
@@ -404,7 +411,7 @@ class MainWindow(QMainWindow):
             ("Admin (DBA)", "✅ Да", "✅ Да (полный)", "✅ Да", "✅ Да"),
             ("Security Officer (Офицер ИБ)", "✅ Да", "❌ Нет (маскировано)", "❌ Нет", "✅ Да"),
             ("Department Operator (Оператор)", "✅ Да", "❌ Нет (маскировано)", "✅ Да", "❌ Нет"),
-            ("Guest (Гость)", "✅ Да (ограничено)", "❌ Нет", "❌ Нет", "❌ Нет")
+            ("Guest (Гость)", "✅ Да", "❌ Нет (маскировано)", "❌ Нет", "❌ Нет")
         ]
         tbl.setRowCount(len(matrix))
         for row_idx, row_data in enumerate(matrix):
@@ -609,6 +616,11 @@ class MainWindow(QMainWindow):
                         cell_str = self.crypto.mask_email(cell_str)
                     elif "salary" in col_name:
                         cell_str = self.crypto.mask_salary(cell_str)
+
+                if can_see and ("encrypted" in col_name):
+                    decrypted = self.crypto.decrypt_field(cell_str)
+                    cell_str = f"{decrypted} [Расшифровано]"
+
                 self.table_employees.setItem(r_idx, c_idx, QTableWidgetItem(cell_str))
         self.table_employees.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
@@ -621,14 +633,16 @@ class MainWindow(QMainWindow):
 
         # Изменение записи аудита
         target.query_text = "SELECT * FROM tampered_data;"
-
-        ph = "%s" if self.db.mode.startswith("PostgreSQL") else "?"
-        cursor = self.db.conn.cursor()
-        cursor.execute(
-            f"UPDATE audit_logs SET query_text = {ph} WHERE id = {ph}",
-            ("SELECT * FROM tampered_data;", target.record_id)
-        )
-        self.db.conn.commit()
+        try:
+            ph = "%s" if self.db.mode.startswith("PostgreSQL") else "?"
+            cursor = self.db.conn.cursor()
+            cursor.execute(
+                f"UPDATE audit_logs SET query_text = {ph} WHERE id = {ph}",
+                ("SELECT * FROM tampered_data;", target.record_id)
+            )
+            self.db.conn.commit()
+        except Exception:
+            pass
 
         QMessageBox.information(self, "Симуляция",
                                 "Запись аудита изменена. Нажмите «Проверить целостность», чтобы увидеть обнаружение.")

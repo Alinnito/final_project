@@ -147,11 +147,14 @@ class AuditLogger:
                 repaired += 1
 
                 if self.db and self.db.conn:
-                    ph = "%s" if self.db.mode.startswith("PostgreSQL") else "?"
-                    cursor = self.db.conn.cursor()
-                    cursor.execute(
-                        f"UPDATE audit_logs SET integrity_hmac = {ph} WHERE id = {ph}",
-                        (new_hmac, r.record_id))
-                    self.db.conn.commit()
+                    try:
+                        ph = "%s" if self.db.mode.startswith("PostgreSQL") else "?"
+                        cursor = self.db.conn.cursor()
+                        cursor.execute(
+                            f"UPDATE audit_logs SET integrity_hmac = {ph} WHERE id = {ph}",
+                            (new_hmac, r.record_id))
+                        self.db.conn.commit()
+                    except Exception:
+                        pass
 
         return repaired
