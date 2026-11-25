@@ -35,6 +35,9 @@ class MetricCard(QFrame):
             self.lbl_sub.setStyleSheet("color: #6c7a89; font-size: 10px;")
             layout.addWidget(self.lbl_sub)
 
+    def update_value(self, new_val: str):
+        self.lbl_value.setText(new_val)
+
 class RiskIndicator(QFrame):
     """Индикатор уровня риска с цветовой дифференциацией"""
     def __init__(self):

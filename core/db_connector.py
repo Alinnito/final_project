@@ -35,7 +35,6 @@ class DBConnector:
             self.is_connected = True
             return
         except Exception:
-            # Fallback to SQLite
             pass
 
         # Инициализация SQLite

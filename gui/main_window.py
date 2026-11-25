@@ -104,23 +104,23 @@ QGroupBox::title {
     padding: 0 5px;
 }
 """
-
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, rbac=None, current_user=None):
         super().__init__()
         self.setWindowTitle("DBSecGuard — Комплексная система защиты баз данных PostgreSQL")
         self.resize(1150, 750)
         self.setStyleSheet(DARK_STYLE)
 
-        # Инициализация подсистем
         self.crypto = CryptoEngine()
         self.sqli = SQLiDetector()
         self.audit = AuditLogger(self.crypto)
-        self.rbac = RBACManager()
+        self.rbac = rbac or RBACManager()
         self.db = DBConnector(crypto=self.crypto)
 
-        # Текущая активная сессия
-        self.current_user = self.rbac.create_session("admin_root", "admin", "192.168.1.100")
+        # Сессия приходит из LoginDialog; если не передана — гость (для отладки)
+        self.current_user = current_user or self.rbac.create_session(
+            "guest_user", "guest", "127.0.0.1"
+        )
 
         self.init_ui()
         self.preload_demo_logs()
@@ -150,6 +150,15 @@ class MainWindow(QMainWindow):
 
         self.combo_user_role = QComboBox()
         self.combo_user_role.addItems(["Admin (Полный доступ)", "Security_Officer (Офицер ИБ)", "Department_Operator (Оператор)", "Guest (Гость)"])
+        role_index_map = {
+            "admin": 0,
+            "security_officer": 1,
+            "department_operator": 2,
+            "guest": 3,
+        }
+        self.combo_user_role.setCurrentIndex(
+            role_index_map.get(self.current_user.role.value, 3)
+        )
         self.combo_user_role.currentIndexChanged.connect(self.on_role_changed)
         top_bar.addWidget(self.combo_user_role)
 
