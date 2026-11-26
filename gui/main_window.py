@@ -153,7 +153,7 @@ class MainWindow(QMainWindow):
         self.lbl_status.setStyleSheet("color: #a0aec0; font-size: 12px; background: #252a33; padding: 4px 10px; border-radius: 4px;")
         top_bar.addWidget(self.lbl_status)
 
-        lbl_user = QLabel("Оператор:")
+        lbl_user = QLabel("Пользователь:")
         top_bar.addWidget(lbl_user)
 
         self.lbl_current_role = QLabel(
@@ -235,7 +235,6 @@ class MainWindow(QMainWindow):
         act_layout.addWidget(btn_tamper)
 
         btn_repair = QPushButton("🔧 Восстановить целостность аудита (пересчёт HMAC)")
-        btn_repair.setObjectName("btn_success")
         btn_repair.clicked.connect(self.repair_audit_integrity)
         act_layout.addWidget(btn_repair)
 
