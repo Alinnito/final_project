@@ -8,7 +8,6 @@
 * Шифрование полей — Fernet (AES-128-CBC + HMAC-SHA256) для конфиденциальных колонок.
 * Tamper-Evident аудит — HMAC-SHA256 для каждой записи, сохранение в БД, проверка целостности в один клик.
 * GUI на PySide6 — дашборд, инспектор запросов, журнал аудита, стенд маскирования, матрица RBAC.
-* Fallback на SQLite — автономный демонстрационный режим при недоступности PostgreSQL.
 
 ## Подсистемы
 
@@ -18,7 +17,7 @@
 |RBAC Manager|core/rbac_manager.py|Роли, разрешения, сессии|
 |Crypto & DDM Module| core/crypto_engine.py|Шифрование Fernet, маскирование|
 |Tamper-Evident Audit Logger| core/audit_logger.py|HMAC-SHA256, журнал в БД|
-|DB Connector| core/db_connector.py|PostgreSQL + SQLite fallback|
+|DB Connector| core/db_connector.py|PostgreSQL|
 
 ## Установка зависимостей
 
@@ -28,7 +27,7 @@ pip install -r requirements.txt
 
 ## Настройка PostgreSQL (опционально)
 
-Если PostgreSQL недоступен, приложение автоматически перейдёт на SQLite. Для работы с PostgreSQL:
+Для работы с PostgreSQL:
 1. Создайте БД и пользователя (или используйте существующие).
 2. Настройте параметры в core/config.py:
 ```bash
