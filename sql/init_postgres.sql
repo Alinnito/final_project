@@ -64,7 +64,6 @@ CREATE TABLE IF NOT EXISTS lessons (
     id SERIAL PRIMARY KEY,
     subject VARCHAR(128) NOT NULL,
     teacher_id INT NOT NULL REFERENCES employees(id) ON DELETE RESTRICT,
-    group_id INT NOT NULL REFERENCES student_groups(id) ON DELETE CASCADE,
     classroom_id INT NOT NULL REFERENCES classrooms(id) ON DELETE RESTRICT,
     lesson_date DATE NOT NULL,
     start_time TIME NOT NULL,
@@ -113,3 +112,12 @@ INSERT INTO departments (id, name, code, confidentiality_level) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 SELECT setval('audit_logs_id_seq', (SELECT COALESCE(MAX(id), 1) FROM audit_logs));
+
+INSERT INTO roles (id, code, name, description) VALUES
+    (1, 'admin',               'Администратор',         'Полный доступ'),
+    (2, 'security_officer',    'Офицер ИБ',             'Настройка ИБ и аудит'),
+    (3, 'department_operator', 'Оператор подразделения','Чтение публичных, запись данных'),
+    (4, 'guest',               'Гость',                 'Только чтение публичных')
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval('roles_id_seq', (SELECT COALESCE(MAX(id), 1) FROM roles));
