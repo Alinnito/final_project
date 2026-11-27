@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtNetwork import QNetworkInterface, QHostAddress, QAbstractSocket
+from core.db_connector import DBConnector
 import hashlib
 
 DEMO_USERS = {
@@ -19,9 +20,10 @@ DEMO_USERS = {
 class LoginDialog(QDialog):
     """Диалог входа: логин, пароль, IP-адрес """
 
-    def __init__(self, rbac_manager, parent=None):
+    def __init__(self, rbac_manager, db_connector: DBConnector, parent=None):
         super().__init__(parent)
         self.rbac = rbac_manager
+        self.db = db_connector
         self.session = None
 
         self.setWindowTitle("DBSecGuard - Вход в систему")
@@ -99,15 +101,24 @@ class LoginDialog(QDialog):
             QMessageBox.warning(self, "Ошибка", "Введите имя пользователя и пароль.")
             return
 
-        user_entry = DEMO_USERS.get(username)
-        if not user_entry:
-            QMessageBox.critical(self, "Отказ", "Пользователь не найден.")
+        if not self.db.is_connected:
+            self.db.init_database()
+
+        if not self.db or not self.db.is_connected:
+            QMessageBox.critical(
+                self, "Нет подключения к серверу",
+                f"Не удалось подключиться к PostgreSQL:\n"
+                f"{self.db.config.host}:{self.db.config.port}/{self.db.config.dbname}\n\n"
+                f"Проверьте, что сервер запущен и введены корректные данные в config"
+            )
             return
 
-        stored_hash, role_str, dept_id = user_entry
-        if hashlib.sha256(password.encode("utf-8")).hexdigest() != stored_hash:
-            QMessageBox.critical(self, "Отказ", "Неверный пароль.")
+        user = self.db.authenticate_user(username, password)
+        if not user:
+            QMessageBox.critical(self, "Отказ", "Неверный логин или пароль.")
             return
 
-        self.session = self.rbac.create_session(username, role_str, ip, dept_id)
+        self.session = self.rbac.create_session(
+            user["username"], user["role"], ip, user["department_id"]
+        )
         self.accept()

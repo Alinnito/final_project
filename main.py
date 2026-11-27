@@ -3,6 +3,7 @@
 """
 import sys
 from core.rbac_manager import RBACManager
+from core.db_connector import DBConnector
 
 def main():
     # Запуск графического интерфейса
@@ -12,13 +13,14 @@ def main():
 
     app = QApplication(sys.argv)
 
+    db = DBConnector()
     rbac = RBACManager()
 
-    login = LoginDialog(rbac)
+    login = LoginDialog(rbac, db_connector = db)
     if login.exec() != LoginDialog.Accepted:
         sys.exit(0)  # пользователь нажал «Отмена»
 
-    window = MainWindow(rbac=rbac, current_user=login.session)
+    window = MainWindow(rbac=rbac, current_user=login.session, db_connector=db)
     window.show()
     sys.exit(app.exec())
 

@@ -15,7 +15,6 @@ class DatabaseConfig:
     user: str = os.getenv("DB_USER", "sa")
     password: str = os.getenv("DB_PASS", "1234")
     use_sqlite_fallback: bool = True
-    sqlite_path: str = os.path.join(os.path.dirname(__file__), "..", "db_local_sec.db")
 
 @dataclass
 class SecurityConfig:

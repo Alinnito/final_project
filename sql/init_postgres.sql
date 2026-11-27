@@ -59,15 +59,7 @@ CREATE TABLE IF NOT EXISTS classrooms (
     has_projector BOOLEAN DEFAULT FALSE
 );
 
--- 7. Типы занятий
-CREATE TABLE IF NOT EXISTS lesson_types (
-    id SERIAL PRIMARY KEY,
-    code VARCHAR(16) NOT NULL UNIQUE,
-    name VARCHAR(64) NOT NULL,
-    default_duration_min INT DEFAULT 90
-);
-
--- 8. Занятия
+-- 7. Занятия
 CREATE TABLE IF NOT EXISTS lessons (
     id SERIAL PRIMARY KEY,
     subject VARCHAR(128) NOT NULL,
@@ -81,15 +73,23 @@ CREATE TABLE IF NOT EXISTS lessons (
     CONSTRAINT chk_lesson_time CHECK (end_time > start_time)
 );
 
--- 9. Оценки
-CREATE TABLE IF NOT EXISTS grades (
+-- 8. Роли
+CREATE TABLE IF NOT EXISTS roles (
     id SERIAL PRIMARY KEY,
-    student_id INT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-    lesson_id INT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
-    grade_value INT NOT NULL CHECK (grade_value BETWEEN 1 AND 5),
-    graded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    comment TEXT,
-    CONSTRAINT uq_student_lesson_grade UNIQUE (student_id, lesson_id)
+    code VARCHAR(32) NOT NULL UNIQUE,
+    name VARCHAR(64) NOT NULL,
+    description TEXT
+);
+
+-- 9. Пользователи
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    password_hash VARCHAR(128) NOT NULL,
+    role_id INT NOT NULL REFERENCES roles(id),
+    department_id INT REFERENCES departments(id),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 10. Аудит логов

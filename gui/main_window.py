@@ -114,14 +114,14 @@ QGroupBox::title {
 }
 """
 class MainWindow(QMainWindow):
-    def __init__(self, rbac=None, current_user=None):
+    def __init__(self, rbac=None, current_user=None, db_connector=None):
         super().__init__()
         self.setWindowTitle("DBSecGuard — Комплексная система защиты баз данных PostgreSQL")
         self.resize(1150, 750)
         self.setStyleSheet(DARK_STYLE)
 
         self.crypto = CryptoEngine()
-        self.db = DBConnector(crypto=self.crypto)
+        self.db = db_connector or DBConnector()
         self.sqli = SQLiDetector()
         self.audit = AuditLogger(self.crypto, db_connector=self.db)
         self.rbac = rbac or RBACManager()
